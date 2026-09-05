@@ -137,7 +137,7 @@ def assess(patient_id: str, rr, spo2, spo2_scale, supp_o2, sbp, hr, temp, avpu, 
     # RCP red score: any single 3 triggers medium at score 5 threshold, but we report raw
     detail = {"RR": s_rr, "SpO2": s_spo2, "O2": s_o2, "SBP": s_sbp, "HR": s_hr, "Temp": s_temp, "AVPU": s_avpu}
     if any(v == 3 for v in detail.values()):
-        warns.append("Red score (3 in one parameter) → escalate even if NEWS2 <5 per RCP")
+        warns.append("Red score (3 in one parameter) -> escalate even if NEWS2 <5 per RCP")
 
     q, qf = qsofa_score(rr, sbp, avpu)
     s, sf = sirs_score(temp, hr, rr, wcc)
@@ -186,6 +186,12 @@ def build_parser():
     s.add_argument("--temp", required=True, type=float); s.add_argument("--avpu", default="A", choices=["A","V","P","U","a","v","p","u"])
     s.add_argument("--wcc", type=float, default=None)
     b = sub.add_parser("batch"); b.add_argument("--input", required=True); b.add_argument("--output", required=True)
+    # Enterprise agent subcommands
+    a = sub.add_parser("audit")
+    a.add_argument("--task-id", default="CLI-AUDIT-01")
+    c = sub.add_parser("chat")
+    c.add_argument("query", nargs="+")
+    sub.add_parser("verify-audit")
     return p
 
 def main(argv=None):
@@ -200,6 +206,32 @@ def main(argv=None):
         results = process_csv(a.input, a.output)
         print(f"Processed {len(results)} -> {a.output}  mean NEWS2={sum(r.news2 for r in results)/len(results):.1f}")
         for r in results: print(f"  {r.patient_id}: NEWS2={r.news2} qSOFA={r.qsofa} SIRS={r.sirs}")
+        return 0
+    if a.cmd == "audit":
+        from agents.supervisor import SystemSupervisor
+        from agents.models import SystemTaskPayload
+        supervisor = SystemSupervisor(model_provider="mock")
+        payload = SystemTaskPayload(
+            task_id=a.task_id,
+            target_identifier="CLI-TARGET",
+            primary_metric=12.0,
+            secondary_metric=4.0,
+            status_descriptor="NOMINAL"
+        )
+        dossier = supervisor.process_task(payload)
+        print(f"Audit dossier: {dossier.dossier_id} urgency={dossier.overall_urgency.value}")
+        return 0
+    if a.cmd == "chat":
+        from agents.supervisor import SystemSupervisor
+        supervisor = SystemSupervisor(model_provider="mock")
+        query = " ".join(a.query)
+        response = supervisor.query_supervisory_chat(query)
+        print(f"Response: {response}")
+        return 0
+    if a.cmd == "verify-audit":
+        from agents.base import AuditLogger
+        valid = AuditLogger.verify_integrity()
+        print(f"Audit trail integrity: {'VALID' if valid else 'COMPROMISED'}")
         return 0
     p.print_help(); return 1
 

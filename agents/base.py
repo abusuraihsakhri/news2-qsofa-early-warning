@@ -1,6 +1,9 @@
 """
 Enterprise Security, PHI Outbound Guard, and HMAC-SHA256 Audit Trail.
 
+Security note: AUDIT_SECRET_KEY must be set in production. Without it,
+AuditLogger raises SecurityException on first use. Set
+AUDIT_ALLOW_DEV_FALLBACK=1 only for local development/testing.
 """
 import os
 import re
@@ -8,6 +11,7 @@ import json
 import time
 import hmac
 import hashlib
+import warnings
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
@@ -57,7 +61,13 @@ class PHIGuard:
 class AuditTrail:
     """Cryptographic Tamper-Evident HMAC-SHA256 Audit Trail."""
     def __init__(self, secret_key: Optional[str] = None):
-        self.secret_key = (secret_key or os.getenv("AUDIT_SECRET_KEY", "news2-qsofa-early-warning-master-audit-key-2026")).encode("utf-8")
+        resolved_key = secret_key or os.getenv("AUDIT_SECRET_KEY")
+        if not resolved_key:
+            raise SecurityException(
+                "AUDIT_SECRET_KEY environment variable is required. "
+                "Set a strong random key before running the application."
+            )
+        self.secret_key = resolved_key.encode("utf-8")
         self.logs: List[Dict[str, Any]] = []
 
     def log(self, actor: str, actor_tier: str, event_type: str, details: Dict[str, Any]) -> Dict[str, Any]:
@@ -93,21 +103,45 @@ class AuditTrail:
         return self.logs
 
 
-GLOBAL_AUDIT = AuditTrail()
+# Lazy-initialized global audit trail so module import never fails.
+_GLOBAL_AUDIT: Optional[AuditTrail] = None
+
+
+def _get_global_audit() -> AuditTrail:
+    """Return the global AuditTrail, creating it on first use."""
+    global _GLOBAL_AUDIT
+    if _GLOBAL_AUDIT is None:
+        try:
+            _GLOBAL_AUDIT = AuditTrail()
+        except SecurityException:
+            if os.getenv("AUDIT_ALLOW_DEV_FALLBACK") == "1":
+                warnings.warn(
+                    "AUDIT_SECRET_KEY not set - using insecure dev fallback. "
+                    "Set AUDIT_SECRET_KEY in production.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                # Use an obviously-dev key; never this in production.
+                _GLOBAL_AUDIT = AuditTrail.__new__(AuditTrail)
+                _GLOBAL_AUDIT.secret_key = b"DEV_FALLBACK_KEY_DO_NOT_USE_IN_PROD"
+                _GLOBAL_AUDIT.logs = []
+            else:
+                raise
+    return _GLOBAL_AUDIT
 
 
 class AuditLogger:
     @staticmethod
     def log(actor: str, actor_tier: str, event_type: str, details: Dict[str, Any]) -> Dict[str, Any]:
-        return GLOBAL_AUDIT.log(actor, actor_tier, event_type, details)
+        return _get_global_audit().log(actor, actor_tier, event_type, details)
 
     @staticmethod
     def get_trail() -> List[Dict[str, Any]]:
-        return GLOBAL_AUDIT.get_trail()
+        return _get_global_audit().get_trail()
 
     @staticmethod
     def verify_integrity() -> bool:
-        return GLOBAL_AUDIT.verify_integrity()
+        return _get_global_audit().verify_integrity()
 
 
 class ActionExecutor:
