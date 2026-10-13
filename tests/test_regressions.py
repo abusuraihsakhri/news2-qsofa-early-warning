@@ -121,3 +121,13 @@ def test_api_scores_without_patient_identity():
     with pytest.raises(HTTPException) as error:
         api_score(bad)
     assert error.value.status_code == 422
+
+
+def test_csv_export_escapes_formula_patient_id(tmp_path):
+    inp, out = tmp_path / "formulas.csv", tmp_path / "results.csv"
+    inp.write_text("patient_id,rr,spo2,systolic_bp,heart_rate,temperature,avpu\n"
+                   "=HYPERLINK(1),16,98,120,72,37,A\n", encoding="utf-8")
+    process_csv(str(inp), str(out))
+    with out.open(newline="", encoding="utf-8") as f:
+        record = next(csv.DictReader(f))
+    assert record["patient_id"].startswith("'=")
