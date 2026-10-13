@@ -32,7 +32,7 @@ jobs:
       run: |
         pytest -v
 
-    - name: Security SAST & Zero-PHI Audit
+    - name: Audit-chain smoke test
       env:
         AUDIT_SECRET_KEY: ci-test-audit-key-news2-qsofa-2026
       run: |
@@ -42,3 +42,23 @@ jobs:
         assert AuditLogger.verify_integrity() is True
         print('Security & Zero-PHI Audit Passed!')
         "
+
+    - name: Python syntax and dependency consistency
+      run: |
+        python -m compileall -q .
+        python -m pip check
+
+    - name: Browser scoring and CSV regression tests
+      run: |
+        node --version
+        node --check web/scoring.js
+        node --test web/scoring.test.cjs
+        python - <<'PY'
+        from pathlib import Path
+        import re
+        html = Path("web/index.html").read_text(encoding="utf-8")
+        scripts = re.findall(r"<script(?:\s[^>]*)?>(.*?)</script>", html, flags=re.S | re.I)
+        assert len(scripts) == 2 and scripts[-1].strip(), "Expected browser script"
+        Path("/tmp/early-warning-inline.js").write_text(scripts[-1], encoding="utf-8")
+        PY
+        node --check /tmp/early-warning-inline.js
