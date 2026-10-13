@@ -200,7 +200,9 @@ def process_csv(inp: str, out: str):
         w = csv.DictWriter(f, fieldnames=["patient_id","news2","news2_response","news2_detail","qsofa","qsofa_flags","sirs","sirs_flags","warnings"])
         w.writeheader()
         for res in results:
-            w.writerow({"patient_id":res.patient_id,"news2":res.news2,"news2_response":res.news2_response,
+            # Avoid spreadsheet-formula execution when exported CSV is opened.
+            pid = "'" + res.patient_id if res.patient_id.lstrip().startswith(("=", "+", "-", "@")) else res.patient_id
+            w.writerow({"patient_id":pid,"news2":res.news2,"news2_response":res.news2_response,
                         "news2_detail":res.news2_detail,"qsofa":res.qsofa,"qsofa_flags":";".join(res.qsofa_flags),
                         "sirs":res.sirs,"sirs_flags":";".join(res.sirs_flags),"warnings":"|".join(res.warnings)})
     return results
