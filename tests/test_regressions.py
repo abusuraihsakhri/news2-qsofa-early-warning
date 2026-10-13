@@ -104,3 +104,20 @@ def test_audit_detects_any_signed_record_tampering():
     assert audit.verify_integrity(), "Returned logs must not alias internal state"
     audit.logs[0]["actor"] = "tampered"
     assert not audit.verify_integrity()
+
+
+def test_api_scores_without_patient_identity():
+    from fastapi import HTTPException
+    from agents.api import VitalSigns, api_score
+    data = VitalSigns(rr=16, spo2=98, systolic_bp=120,
+                      heart_rate=72, temperature=37, avpu="A")
+    result = api_score(data)
+    assert result["news2"] == 0
+    assert result["qsofa"] == 0
+    assert result["patient_id"] == "anonymous"
+    assert result["news2_detail"]["SpO2"] == 0
+    bad = VitalSigns(rr=16, spo2=102, systolic_bp=120,
+                     heart_rate=72, temperature=37, avpu="A")
+    with pytest.raises(HTTPException) as error:
+        api_score(bad)
+    assert error.value.status_code == 422
