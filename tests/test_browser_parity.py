@@ -17,7 +17,7 @@ def test_browser_python_scoring_parity():
     for scale in (1, 2):
         for oxygen in (0, 1):
             for spo2 in (80, 83, 84, 85, 86, 87, 88, 91, 92, 93, 94, 95, 96, 97, 100):
-                for rr in (8, 11, 12, 20, 21, 22, 24, 25):
+                for rr in (1, 8, 9, 11, 12, 16, 20, 21, 22, 23, 24, 25, 26, 30, 40, 100):
                     cases.append({
                         "rr": rr, "spo2": spo2, "scale": scale, "o2": oxygen,
                         "sbp": 100, "hr": 111, "temp": 38.1, "avpu": "C", "wcc": 13
