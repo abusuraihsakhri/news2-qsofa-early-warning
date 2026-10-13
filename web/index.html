@@ -147,6 +147,18 @@
     const messages = r.warnings.length ? r.warnings : ["No additional scoring notes."];
     messages.forEach(msg => { const li = document.createElement("li"); li.textContent = msg; list.append(li); });
   }
+  form.addEventListener("input", () => {
+    el("resultPanel").hidden = true;
+    el("empty").hidden = false;
+    el("empty").textContent = "Observations changed. Calculate scores again.";
+    showError(el("error"), "");
+  });
+  el("csv").addEventListener("change", () => {
+    batchResults = [];
+    el("downloadCsv").disabled = true;
+    el("batchSummary").textContent = "";
+    showError(el("batchError"), "");
+  });
   form.addEventListener("submit", e => {
     e.preventDefault(); showError(el("error"), "");
     try { render(EarlyWarning.assess(readVitals())); }
