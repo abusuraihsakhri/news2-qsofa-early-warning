@@ -109,7 +109,9 @@
     });
   }
   function quoteCsv(v) {
-    const s = String(v === null || v === undefined ? "" : v);
+    let s = String(v === null || v === undefined ? "" : v);
+    // Prevent spreadsheet formula execution when downloaded CSV is opened.
+    if (/^[\s\u0000-\u001f]*[=+@-]/.test(s)) s = "\u0027" + s;
     return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }
   function exportCsv(results) {
