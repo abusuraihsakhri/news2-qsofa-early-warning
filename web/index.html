@@ -1,236 +1,192 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>News2 Qsofa Early Warning — Operations Console</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg: #090d16;
-            --card: #111827;
-            --border: #1f293d;
-            --accent: #3b82f6;
-            --accent-glow: rgba(59, 130, 246, 0.25);
-            --text: #f3f4f6;
-            --text-muted: #9ca3af;
-            --danger: #ef4444;
-            --warning: #f59e0b;
-            --success: #10b981;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: 'Inter', sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            padding: 2rem;
-            min-height: 100vh;
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        .header-title h1 { font-size: 1.6rem; font-weight: 700; color: #fff; }
-        .header-title p { color: var(--text-muted); font-size: 0.9rem; margin-top: 0.25rem; }
-        .badge {
-            display: inline-block;
-            padding: 0.3rem 0.8rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            background: var(--accent-glow);
-            color: var(--accent);
-            border: 1px solid var(--accent);
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr 1.2fr;
-            gap: 1.5rem;
-        }
-        .card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1.5rem;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-        }
-        .card h2 {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        .form-group { margin-bottom: 1rem; }
-        label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.4rem; }
-        input, select, textarea {
-            width: 100%;
-            padding: 0.65rem 0.9rem;
-            background: #0d1322;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            color: #fff;
-            font-family: inherit;
-            font-size: 0.9rem;
-        }
-        input:focus, textarea:focus { outline: none; border-color: var(--accent); }
-        .btn {
-            background: var(--accent);
-            color: #fff;
-            border: none;
-            padding: 0.7rem 1.4rem;
-            border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: 0.2s;
-            width: 100%;
-        }
-        .btn:hover { background: #2563eb; }
-        .terminal {
-            background: #060911;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1rem;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.85rem;
-            color: #10b981;
-            height: 380px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-        }
-        .metrics-bar {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-        .metric-box {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1rem;
-            text-align: center;
-        }
-        .metric-val { font-size: 1.4rem; font-weight: 700; color: #fff; margin-top: 0.25rem; }
-        .metric-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Private, browser-only NEWS2, qSOFA and SIRS scoring calculator.">
+  <title>NEWS2 · qSOFA · SIRS | Early warning calculator</title>
+  <style>
+    :root {color-scheme:light;--navy:#142b45;--blue:#164b76;--ink:#1b2a38;--muted:#516171;--bg:#f1f5f9;--paper:#fff;--line:#cad5e0;--focus:#0058a3}
+    * {box-sizing:border-box}
+    body {margin:0;color:var(--ink);background:var(--bg);font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    .wrap {max-width:1100px;margin:auto;padding:24px 20px 60px}
+    header {background:var(--navy);color:#fff}
+    header .wrap {padding-top:25px;padding-bottom:25px}
+    h1 {font-size:clamp(1.45rem,3vw,2rem);margin:0;line-height:1.2}
+    .subtitle {margin:8px 0 0;color:#d4e4f1}
+    h2 {font-size:1.18rem;margin:0 0 16px}
+    .notice {margin:20px 0;padding:14px 17px;border-left:4px solid #9b5204;background:#fff7e7}
+    .layout {display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.9fr);gap:20px;align-items:start}
+    .card {background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:23px;margin-bottom:20px;box-shadow:0 2px 8px #1b2a3810}
+    .fields {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+    label {display:block;font-weight:600;font-size:.89rem;margin-bottom:5px}
+    .hint {color:var(--muted);font-weight:400;font-size:.78rem}
+    input,select {display:block;width:100%;height:43px;border:1px solid #8799ab;border-radius:6px;background:#fff;color:#152536;padding:9px 11px;font:inherit}
+    input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible {outline:3px solid var(--focus);outline-offset:2px}
+    .wide {grid-column:1/-1}
+    .actions {display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+    button {cursor:pointer;border:0;border-radius:6px;padding:10px 16px;font:600 .95rem system-ui;background:#164b76;color:white}
+    button.secondary {background:#e6edf4;color:#12395a;border:1px solid #a2b2bf}
+    button:disabled {opacity:.5;cursor:not-allowed}
+    #error,#batchError {color:#92231b;font-weight:600;white-space:pre-wrap}
+    .results {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0 18px}
+    .score {background:#eaf1f8;border:1px solid #cad7e3;border-radius:8px;text-align:center;padding:14px 8px}
+    .score strong {display:block;font-size:2rem;line-height:1.2;color:var(--navy)}
+    .score span {font-size:.82rem}
+    .priority {border-left:4px solid #166b44;padding:10px 12px;background:#ebf6ee;font-weight:650;margin-bottom:14px}
+    .priority.medium {border-color:#a36400;background:#fff5df}
+    .priority.high {border-color:#9c2424;background:#fff0ee}
+    table {width:100%;border-collapse:collapse;font-size:.91rem}
+    th,td {border-bottom:1px solid var(--line);padding:7px 4px;text-align:left}
+    td:last-child,th:last-child {text-align:right}
+    .small {font-size:.86rem;color:var(--muted)}
+    ul {margin:8px 0 0;padding-left:20px}
+    li {margin:4px 0}
+    .batch {border-top:1px solid var(--line);margin-top:16px;padding-top:16px}
+    #batchSummary {font-weight:600}
+    footer {margin-top:10px;font-size:.86rem;color:var(--muted)}
+    a {color:#164b76;text-underline-offset:2px}
+    [hidden] {display:none!important}
+    @media(max-width:780px) {.layout {grid-template-columns:1fr}.wrap {padding:18px 14px 40px}.card {padding:17px}}
+    @media(max-width:420px) {.fields {grid-template-columns:1fr}.results {gap:5px}.score {padding:10px 3px}.score strong {font-size:1.55rem}}
+  </style>
 </head>
 <body>
-
-    <div class="header">
-        <div class="header-title">
-            <h1>News2 Qsofa Early Warning</h1>
-            <p>Domain: Clinical & Cryptographic AI | Standard: CAP / CLSI / NIST Standards | LabMind-Atlas Architecture</p>
-        </div>
-        <div>
-            <span class="badge">Air-Gapped Active</span>
-            <span class="badge" style="background: rgba(16,185,129,0.2); color: #10b981; border-color: #10b981;">Zero-PHI Guard Active</span>
-        </div>
+<header><div class="wrap">
+  <h1>NEWS2 · qSOFA · SIRS</h1>
+  <p class="subtitle">Bedside early-warning scores · Single observation or CSV batch · Calculated entirely in your browser</p>
+</div></header>
+<main class="wrap">
+  <div class="notice" role="note"><strong>Clinical use:</strong> Educational decision support only. Verify observations and follow local escalation protocols. NEWS2 Scale 2 is only appropriate when a qualified clinician has specified an SpO₂ target of 88–92%. qSOFA does not establish or exclude sepsis.</div>
+  <div class="layout">
+    <div>
+      <section class="card" aria-labelledby="form-title">
+        <h2 id="form-title">Observation set</h2>
+        <form id="scoreForm">
+          <div class="fields">
+            <div><label for="rr">Respiratory rate <span class="hint">breaths/min</span></label><input id="rr" name="rr" type="number" required min="1" max="100" step="1" value="16"></div>
+            <div><label for="spo2">SpO₂ <span class="hint">%</span></label><input id="spo2" name="spo2" type="number" required min="0" max="100" step="1" value="98"></div>
+            <div><label for="scale">SpO₂ scoring scale</label><select id="scale" name="scale"><option value="1">Scale 1 (standard)</option><option value="2">Scale 2 (prescribed 88–92%)</option></select></div>
+            <div><label for="o2">Supplemental oxygen</label><select id="o2" name="o2"><option value="0">No — room air</option><option value="1">Yes</option></select></div>
+            <div><label for="sbp">Systolic BP <span class="hint">mmHg</span></label><input id="sbp" name="sbp" type="number" required min="1" max="400" step="1" value="120"></div>
+            <div><label for="hr">Heart rate <span class="hint">beats/min</span></label><input id="hr" name="hr" type="number" required min="1" max="300" step="1" value="72"></div>
+            <div><label for="temp">Temperature <span class="hint">°C; one decimal</span></label><input id="temp" name="temp" type="number" required min="25" max="45" step="0.1" value="37.0"></div>
+            <div><label for="avpu">Consciousness <span class="hint">ACVPU</span></label><select id="avpu" name="avpu"><option value="A">A — Alert</option><option value="C">C — New confusion</option><option value="V">V — Voice</option><option value="P">P — Pain</option><option value="U">U — Unresponsive</option></select></div>
+            <div class="wide"><label for="wcc">White blood cell count <span class="hint">×10⁹/L; optional (required for complete SIRS)</span></label><input id="wcc" name="wcc" type="number" min="0" max="1000" step="any" placeholder="Not available"></div>
+          </div>
+          <div class="actions"><button type="submit">Calculate scores</button><button type="button" class="secondary" id="resetBtn">Reset</button></div>
+        </form>
+        <p id="error" role="alert" aria-live="polite" hidden></p>
+      </section>
+      <section class="card" aria-labelledby="batch-title">
+        <h2 id="batch-title">Batch CSV</h2>
+        <p class="small">Files are processed locally. Required columns: <code>rr, spo2, systolic_bp, heart_rate, temperature</code>, and <code>avpu</code> (or <code>consciousness</code>). Optional: <code>patient_id, spo2_scale, supplemental_o2, wcc</code>. No input is uploaded.</p>
+        <label for="csv">Choose a CSV file (maximum 1 MB, 5,000 rows)</label>
+        <input type="file" id="csv" accept=".csv,text/csv">
+        <div class="actions"><button type="button" id="processCsv">Process CSV</button><button type="button" id="downloadCsv" class="secondary" disabled>Download results</button></div>
+        <p id="batchError" role="alert" aria-live="polite" hidden></p>
+        <p id="batchSummary" aria-live="polite"></p>
+      </section>
     </div>
-
-    <div class="metrics-bar">
-        <div class="metric-box">
-            <div class="metric-label">System Status</div>
-            <div class="metric-val" style="color: var(--success);" id="m-status">OPTIMAL</div>
+    <section class="card" aria-labelledby="result-title">
+      <h2 id="result-title">Results</h2>
+      <p id="empty">Enter observations and select <strong>Calculate scores</strong>.</p>
+      <div id="resultPanel" hidden aria-live="polite">
+        <div class="results">
+          <div class="score"><strong id="newsScore"></strong><span>NEWS2 (0–20)</span></div>
+          <div class="score"><strong id="qScore"></strong><span>qSOFA (0–3)</span></div>
+          <div class="score"><strong id="sScore"></strong><span id="sirsLabel">SIRS (0–4)</span></div>
         </div>
-        <div class="metric-box">
-            <div class="metric-label">Tasks Processed</div>
-            <div class="metric-val" id="m-tasks">142</div>
+        <div id="priority" class="priority"></div>
+        <h2>NEWS2 components</h2>
+        <table><thead><tr><th scope="col">Parameter</th><th scope="col">Points</th></tr></thead><tbody id="detailBody"></tbody></table>
+        <div class="batch"><strong>qSOFA criteria met</strong><p id="qFlags" class="small"></p>
+          <strong>SIRS criteria met</strong><p id="sFlags" class="small"></p>
+          <strong>Notes</strong><ul id="warnings"></ul>
         </div>
-        <div class="metric-box">
-            <div class="metric-label">Audit Blocks Signed</div>
-            <div class="metric-val" id="m-audit">142</div>
-        </div>
-        <div class="metric-box">
-            <div class="metric-label">PHI Interceptions</div>
-            <div class="metric-val" style="color: var(--accent);" id="m-phi">0</div>
-        </div>
-    </div>
-
-    <div class="grid">
-        <div class="card">
-            <h2>⚙️ Dispatch Distributed Component Audit</h2>
-            <div class="form-group">
-                <label>Task / Sample ID</label>
-                <input type="text" id="task_id" value="TASK-2026-LIVE-01">
-            </div>
-            <div class="form-group">
-                <label>Target Identifier</label>
-                <input type="text" id="target_id" value="SPECIMEN-ALPHA-77">
-            </div>
-            <div class="form-group">
-                <label>Primary Measurement / Value</label>
-                <input type="number" id="primary_metric" value="29.4" step="0.1">
-            </div>
-            <div class="form-group">
-                <label>Secondary Metric / Kinetic Index</label>
-                <input type="number" id="secondary_metric" value="14.8" step="0.1">
-            </div>
-            <div class="form-group">
-                <label>Status / Phenotype Descriptor</label>
-                <input type="text" id="status_descriptor" value="DISCORDANT_ANOMALY">
-            </div>
-            <div class="form-group">
-                <label><input type="checkbox" id="is_critical" checked> Trigger Emergency / Critical Flag</label>
-            </div>
-            <button class="btn" onclick="runAudit()">Execute Distributed Component Audit</button>
-        </div>
-
-        <div class="card">
-            <h2>📊 Real-Time Consensus Dossier & Audit Log</h2>
-            <div class="terminal" id="outputConsole">// News2 Qsofa Early Warning Operations Console Ready
-// Connection established with Air-Gapped Supervisor
-// Cryptographic HMAC-SHA256 audit ledger loaded.
-// Ready for live task payload dispatch...</div>
-        </div>
-    </div>
-
-    <script>
-        async function runAudit() {
-            const consoleEl = document.getElementById('outputConsole');
-            consoleEl.innerText = "// Dispatching task across specialized workers...
-// Invoking InvariantQCWorker, SafetyEscalationWorker, ProtocolWorker...";
-
-            const payload = {
-                task_id: document.getElementById('task_id').value,
-                target_identifier: document.getElementById('target_id').value,
-                primary_metric: parseFloat(document.getElementById('primary_metric').value),
-                secondary_metric: parseFloat(document.getElementById('secondary_metric').value),
-                status_descriptor: document.getElementById('status_descriptor').value,
-                is_critical_flag: document.getElementById('is_critical').checked
-            };
-
-            try {
-                const res = await fetch('/api/audit', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const data = await res.json();
-                consoleEl.innerText = JSON.stringify(data, null, 2);
-                document.getElementById('m-tasks').innerText = parseInt(document.getElementById('m-tasks').innerText) + 1;
-                document.getElementById('m-audit').innerText = parseInt(document.getElementById('m-audit').innerText) + 1;
-            } catch (err) {
-                consoleEl.innerText = "// Offline / Simulation Output:\n" + JSON.stringify({
-                    dossier_id: "DOSSIER-SIM-" + Math.floor(Math.random()*10000),
-                    system: "news2-qsofa-early-warning",
-                    domain: "Clinical & Cryptographic AI",
-                    task_id: payload.task_id,
-                    overall_urgency: payload.is_critical_flag ? "CRITICAL_STAT_PANIC" : "ELEVATED_RISK",
-                    integrity_status: "DISCORDANT_ANOMALY",
-                    alerts: [
-                        { worker: "InvariantQCWorker", alert: "Primary metric exceeds upper reference bound" },
-                        { worker: "SafetyEscalationWorker", alert: "Critical emergency interlock flag active" }
-                    ],
-                    audit_hash: "HMAC_SHA256_e83f9a72b941d6c381f9"
-                }, null, 2);
-            }
-        }
-    </script>
+      </div>
+    </section>
+  </div>
+  <footer>Scoring reference: <a href="https://www.rcp.ac.uk/resources/national-early-warning-score-news-2/" rel="noopener noreferrer" target="_blank">Royal College of Physicians NEWS2 (2017)</a>. No account, backend, external fonts, or local storage required. Avoid entering identifiable patient information in browser tools.</footer>
+</main>
+<script src="./scoring.js"></script>
+<script>
+(function () {
+  "use strict";
+  const el = id => document.getElementById(id);
+  const form = el("scoreForm");
+  let batchResults = [];
+  function showError(target, message) {
+    target.textContent = message || "";
+    target.hidden = !message;
+  }
+  function readVitals() {
+    const f = form.elements;
+    const get = name => f.namedItem(name).value;
+    return {rr:get("rr"),spo2:get("spo2"),scale:get("scale"),o2:get("o2"),
+      sbp:get("sbp"),hr:get("hr"),temp:get("temp"),avpu:get("avpu"),wcc:get("wcc")};
+  }
+  function render(r) {
+    el("empty").hidden = true; el("resultPanel").hidden = false;
+    el("newsScore").textContent = String(r.news2);
+    el("qScore").textContent = String(r.qsofa);
+    el("sScore").textContent = String(r.sirs);
+    el("sirsLabel").textContent = r.sirsComplete ? "SIRS (0–4)" : "SIRS (partial: 3 of 4)";
+    el("priority").textContent = r.response;
+    el("priority").className = "priority " + (r.news2 >= 7 ? "high" : r.news2 >= 5 || r.red ? "medium" : "");
+    const tbody = el("detailBody"); tbody.replaceChildren();
+    Object.entries(r.detail).forEach(([name,points]) => {
+      const tr = document.createElement("tr");
+      const a = document.createElement("td"), b = document.createElement("td");
+      a.textContent = name; b.textContent = String(points);
+      tr.append(a,b); tbody.append(tr);
+    });
+    el("qFlags").textContent = r.qsofaFlags.join("; ") || "None";
+    el("sFlags").textContent = r.sirsFlags.join("; ") || "None";
+    const list = el("warnings"); list.replaceChildren();
+    const messages = r.warnings.length ? r.warnings : ["No additional scoring notes."];
+    messages.forEach(msg => { const li = document.createElement("li"); li.textContent = msg; list.append(li); });
+  }
+  form.addEventListener("submit", e => {
+    e.preventDefault(); showError(el("error"), "");
+    try { render(EarlyWarning.assess(readVitals())); }
+    catch (err) { el("resultPanel").hidden = true; el("empty").hidden = false; showError(el("error"), err.message); }
+  });
+  el("resetBtn").addEventListener("click", () => {
+    form.reset(); el("resultPanel").hidden = true; el("empty").hidden = false; showError(el("error"), "");
+  });
+  el("processCsv").addEventListener("click", async () => {
+    batchResults = []; el("downloadCsv").disabled = true; el("batchSummary").textContent = "";
+    showError(el("batchError"), "");
+    const file = el("csv").files[0];
+    if (!file) { showError(el("batchError"), "Choose a CSV file."); return; }
+    if (file.size > 1024 * 1024) { showError(el("batchError"), "CSV exceeds 1 MB."); return; }
+    try {
+      const rows = EarlyWarning.parseCsv(await file.text());
+      if (rows.length > 5000) throw new Error("CSV exceeds 5,000 observations");
+      batchResults = rows.map((row, i) => {
+        try {
+          const result = EarlyWarning.assess({
+            rr:row.rr,spo2:row.spo2,scale:row.spo2_scale || "1",
+            o2:row.supplemental_o2 || "0",sbp:row.systolic_bp,
+            hr:row.heart_rate,temp:row.temperature,avpu:row.avpu || row.consciousness,
+            wcc:row.wcc
+          });
+          return {patientId:row.patient_id || row.id || "",result:result};
+        } catch (err) { throw new Error("Row " + (i + 2) + ": " + err.message); }
+      });
+      el("downloadCsv").disabled = batchResults.length === 0;
+      el("batchSummary").textContent = batchResults.length + " observation(s) scored locally.";
+    } catch (err) { batchResults = []; showError(el("batchError"), err.message); }
+  });
+  el("downloadCsv").addEventListener("click", () => {
+    if (!batchResults.length) return;
+    const blob = new Blob([EarlyWarning.exportCsv(batchResults)], {type:"text/csv;charset=utf-8"});
+    const url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url; a.download = "early-warning-results.csv"; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+})();
+</script>
 </body>
 </html>
