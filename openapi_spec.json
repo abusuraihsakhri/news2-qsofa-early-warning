@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "News2 Qsofa Early Warning API",
-    "description": "Enterprise Distributed Component Platform (Clinical & Cryptographic AI) adhering to CAP / CLSI / NIST Standards.",
+    "description": "FastAPI service with deterministic NEWS2, qSOFA and SIRS scoring and separate demonstration agent endpoints.",
     "version": "3.0.0-ENTERPRISE",
     "contact": {
       "name": "Dr. Abu Suraih Sakhri",
@@ -22,10 +22,10 @@
     },
     "/metrics": {
       "get": {
-        "summary": "Prometheus operational metrics",
+        "summary": "Read JSON service counters",
         "responses": {
           "200": {
-            "description": "Prometheus text metrics"
+            "description": "JSON with count and status fields"
           }
         }
       }
@@ -76,7 +76,7 @@
     },
     "/api/chat": {
       "post": {
-        "summary": "Air-gapped supervisory conversational assistant",
+        "summary": "Query the deterministic mock assistant (not clinical decision support)",
         "requestBody": {
           "content": {
             "application/json": {
@@ -107,6 +107,85 @@
         "responses": {
           "200": {
             "description": "Cryptographic audit trail"
+          }
+        }
+      }
+    },
+    "/api/score": {
+      "post": {
+        "summary": "Calculate NEWS2, qSOFA and SIRS from observations",
+        "description": "No identifier is accepted or persisted; validate appropriate clinical context separately.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rr": {
+                    "type": "number"
+                  },
+                  "spo2": {
+                    "type": "number"
+                  },
+                  "spo2_scale": {
+                    "type": "integer",
+                    "default": 1,
+                    "enum": [
+                      1,
+                      2
+                    ]
+                  },
+                  "supplemental_o2": {
+                    "type": "integer",
+                    "enum": [
+                      0,
+                      1
+                    ],
+                    "default": 0
+                  },
+                  "systolic_bp": {
+                    "type": "number"
+                  },
+                  "heart_rate": {
+                    "type": "number"
+                  },
+                  "temperature": {
+                    "type": "number"
+                  },
+                  "avpu": {
+                    "type": "string",
+                    "enum": [
+                      "A",
+                      "C",
+                      "V",
+                      "P",
+                      "U"
+                    ]
+                  },
+                  "wcc": {
+                    "type": "number",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "rr",
+                  "spo2",
+                  "systolic_bp",
+                  "heart_rate",
+                  "temperature",
+                  "avpu"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Component scores, totals, and warnings"
+          },
+          "422": {
+            "description": "Invalid or missing observations"
           }
         }
       }

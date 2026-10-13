@@ -25,6 +25,9 @@ class SystemSupervisor:
         PHIGuard.assert_no_phi(payload.task_id)
         PHIGuard.assert_no_phi(payload.target_identifier)
         PHIGuard.assert_no_phi(payload.status_descriptor)
+        # Arbitrary metadata must not bypass the identifier guard.
+        import json
+        PHIGuard.assert_no_phi(json.dumps(payload.attributes, default=str))
 
         # Multi-worker evaluations
         all_alerts: List[AgentAlert] = []

@@ -1,145 +1,94 @@
-# NEWS2 QSOFA Early Warning
+# NEWS2, qSOFA and SIRS Early Warning
 
-> **Domain:** Clinical Decision Support & Biomedical Computing
-> **Reference Guidelines & Standards:** `Standard Clinical Formulations & ISO/IEC Quality Frameworks`
+A deterministic bedside score calculator for research, education, and clinical decision support. Supports a static browser application, a dependency-free Python scoring engine, CSV batch processing, and an optional FastAPI service.
 
-<div align="center">
+## Scoring
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688.svg?logo=fastapi&logoColor=white)
-![Audit Trail](https://img.shields.io/badge/Audit-HMAC--SHA256_Tamper--Evident-brightgreen.svg)
-![Zero-PHI Guard](https://img.shields.io/badge/Guard-Zero--PHI_Outbound-blue.svg)
-![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?logo=docker&logoColor=white)
+- **NEWS2 (0–20):** RCP 2017 respiratory rate, SpO₂, supplemental oxygen, systolic blood pressure, heart rate, temperature and ACVPU. Scores 5–6 prompt urgent review; ≥7 require emergency assessment. **Any single component score of 3 requires escalation even when the total is below 5.**
+- **SpO₂ Scale 2:** Use only when a qualified clinician has prescribed an SpO₂ target of **88–92%**, typically for confirmed hypercapnic respiratory failure. On room air, saturations ≥93% score **0** on Scale 2; elevated saturations score only while receiving supplemental oxygen.
+- **qSOFA (0–3):** respiratory rate ≥22/min, systolic pressure ≤100 mmHg and altered mental status (AVPU surrogate; GCS <15 when supplied via the Python convenience function). It is **not** a stand-alone sepsis diagnostic or screening rule.
+- **SIRS (0–4):** temperature, heart rate, respiratory rate, and white-cell count. When WCC is omitted, only a **partial 3-component score** is reported.
 
-</div>
+The calculator validates ranges, completeness, and numerical finiteness. Results must be interpreted against the **[Royal College of Physicians NEWS2 guidance](https://www.rcp.ac.uk/resources/national-early-warning-score-news-2/)** and local escalation protocols. The SIRS and qSOFA implementations use their conventional thresholds.
 
----
+**Clinical limitation:** This software has not undergone prospective clinical validation as a medical device. Do not substitute its output for examination, assessment, or locally mandated care pathways.
 
-## What It Does
+## Browser application
 
-NEWS2 + qSOFA + SIRS Early Warning Calculator
-==============================================
+The static app is in [web/](web/) and has no runtime dependencies, login, API calls, external fonts, or browser storage. Enter a single observation set, or import a CSV for local batch processing and download the scored results. No observations are sent to a server by the browser application.
 
-Computes three bedside deterioration scores from vitals:
+For local use, open \`web/index.html\` directly in a modern browser, or serve the repository using:
 
-- **NEWS2** (Royal College of Physicians 2017): 7 params, 0-20, with
-  SpO2 scale 1 (most patients) and scale 2 (hypercapnic COPD on O2).
-  Triggers: 0-4 low, 5-6 medium, >=7 high.
+\`\`\`bash
+python -m http.server 8000
+\`\`\`
 
-- **qSOFA** (Singer et al. JAMA 2016): 3 binary items, 0-3. >=2 = high sepsis risk.
+Then visit \`http://localhost:8000/web/\`. GitHub Pages builds are configured through \`.github/workflows/pages.yml\` on pushes to \`master\`.
 
-- **SIRS** (Bone 1992): 4 binary items, 0-4. >=2 = SIRS positive.
+CSV requires the columns \`rr,spo2,systolic_bp,heart_rate,temperature,avpu\` (or \`consciousness\` instead of \`avpu\`). Optional columns are \`patient_id,spo2_scale,supplemental_o2,wcc\`. For example, see [sample_vitals.csv](sample_vitals.csv). Avoid identifiable data in demonstration environments, and protect downloaded CSV files.
 
-Stdlib only. Single + batch CSV.
+## Python CLI
 
----
+The core calculation requires Python **3.10+** and the standard library only.
 
-## Quickstart
-
-### Installation
-
-```bash
-pip install fastapi uvicorn pydantic pytest
-```
-
-### Environment Variables
-
-| Variable | Required | Description |
-|:---------|:---------|:------------|
-| `AUDIT_SECRET_KEY` | Yes (production) | Secret key for HMAC-SHA256 audit trail signing. |
-| `AUDIT_ALLOW_DEV_FALLBACK` | No | Set to `1` to allow insecure dev fallback when key is missing. |
-| `MODEL_PROVIDER` | No | LLM provider: `mock` (default), `ollama`, `claude`, `openai`. |
-
-### CLI Usage
-
-#### 1. Single Patient Evaluation
-```bash
-python cli.py single --rr 16 --spo2 98 --sbp 120 --hr 72 --temp 37.0
+\`\`\`bash
+python cli.py single --rr 16 --spo2 98 --sbp 120 --hr 72 --temp 37.0 --avpu A
 python cli.py single --rr 28 --spo2 88 --sbp 85 --hr 120 --temp 39.5 --avpu V --o2 1
-```
-
-#### 2. Batch CSV Processing
-```bash
 python cli.py batch --input sample_vitals.csv --output results.csv
-```
+\`\`\`
 
-#### 3. Enterprise Agent Commands
-```bash
-python cli.py audit --task-id TASK-001
-python cli.py chat "Explain NEWS2 scoring"
-python cli.py verify-audit
-```
+Missing or invalid observations raise an error; CSV batch processing reports the offending input row. Blank WCC is accepted but explicitly marks SIRS incomplete.
 
-### REST API (FastAPI)
+## Optional API and demonstration agent modules
 
-```bash
-uvicorn agents.api:app --host 0.0.0.0 --port 8000
-```
+Install the server and test dependencies:
 
-Endpoints:
-- `GET /health` - Health check
-- `GET /metrics` - Prometheus metrics
-- `POST /api/audit` - Dispatch task to agent workers
-- `POST /api/chat` - Supervisory chat assistant
-- `GET /api/audit/logs` - Retrieve and verify audit trail
+\`\`\`bash
+python -m pip install fastapi uvicorn pydantic pytest
+uvicorn agents.api:app --host 127.0.0.1 --port 8000
+\`\`\`
 
----
+Available API routes:
 
-## Testing
+| Method | Route | Function |
+| --- | --- | --- |
+| POST | \`/api/score\` | Validated scoring from vital signs; no patient identifier accepted |
+| GET | \`/health\` | Service health response |
+| GET | \`/metrics\` | JSON service counters |
+| POST | \`/api/audit\` | Demonstration agent task processing |
+| POST | \`/api/chat\` | Deterministic mock response (not clinical advice) |
+| GET | \`/api/audit/logs\` | In-memory signed audit-chain entries |
 
-```bash
-pytest -v
-```
+Example:
 
----
+\`\`\`bash
+curl -s http://127.0.0.1:8000/api/score \
+  -H 'Content-Type: application/json' \
+  -d '{"rr":16,"spo2":98,"systolic_bp":120,"heart_rate":72,"temperature":37,"avpu":"A"}'
+\`\`\`
 
-## Project Structure
+The optional agent endpoints are development demonstrations, **not authenticated production clinical services**. PHI detection is pattern-based and cannot guarantee de-identification. Do not expose the API publicly without independently implementing transport security, authentication, authorization, access logging and clinical governance.
 
-```
-news2-qsofa-early-warning/
-├── news2_qsofa.py       # Core scoring engine + CLI
-├── cli.py               # CLI entry point
-├── enrichment.py        # Extended clinical feature engines
-├── simulator.py         # High-throughput simulation
-├── agents/
-│   ├── __init__.py      # Package init
-│   ├── base.py          # PHI guard, HMAC audit trail, security
-│   ├── models.py        # Pydantic schemas
-│   ├── supervisor.py    # Multi-agent orchestrator
-│   ├── workers.py       # Specialized worker agents
-│   ├── llm_factory.py   # LLM provider factory
-│   ├── api.py           # FastAPI REST server
-│   ├── metrics.py       # Prometheus metrics
-│   ├── learning.py      # Bayesian calibration engine
-│   └── streamer.py      # WebSocket telemetry
-├── tests/               # Test suite
-├── web/                 # Operations console (HTML)
-├── conftest.py          # Pytest configuration
-├── Dockerfile           # Container build
-├── docker-compose.yml   # Container orchestration
-└── .github/workflows/   # CI/CD
-```
+## Container
 
----
+Configure a unique key outside source control; no production signing key is included:
 
-## Security
+\`\`\`bash
+export AUDIT_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+docker compose up --build
+\`\`\`
 
-- **Zero-PHI Outbound Interceptor:** AST and regex inspection blocking SSNs, MRNs, phone numbers, and patient identifiers.
-- **Tamper-Evident HMAC-SHA256 Audit Trail:** Chained, cryptographically signed logs for every evaluation.
-- **Configurable Audit Key:** `AUDIT_SECRET_KEY` env var required in production; no hardcoded defaults.
+Compose binds to \`127.0.0.1:8000\` by default. \`AUDIT_SECRET_KEY\` signs the in-memory HMAC-SHA256 chain; it is not a replacement for encryption or access control. The Python core and browser calculator do not need this key.
 
----
+## Tests and implementation
 
-## Container Deployment
+\`\`\`bash
+python -m pip install pytest fastapi uvicorn pydantic
+python -m pytest -v
+node --test web/scoring.test.cjs
+node --check web/scoring.js
+\`\`\`
 
-```bash
-docker build -t news2-qsofa-early-warning .
-docker run -p 8000:8000 -e AUDIT_SECRET_KEY=your-secret-key news2-qsofa-early-warning
-```
+The Python engine and JavaScript browser engine use the same documented scoring thresholds, with regression tests for clinical boundaries, validation, CSV import/export, and signing integrity. The static client uses ordinary JavaScript, **not** Pyodide; no browser Python runtime or server is required.
 
-Or with docker-compose:
-
-```bash
-docker-compose up
-```
+Works with current Chromium, Firefox and Safari versions supporting modern JavaScript and the File API. MIT licensed; see [LICENSE](LICENSE).

@@ -16,7 +16,7 @@ Computes three bedside deterioration scores from vitals:
 Stdlib only. Single + batch CSV.
 """
 from __future__ import annotations
-import argparse, csv, sys
+import argparse, csv, math, sys
 from dataclasses import dataclass
 from typing import Optional
 
@@ -36,15 +36,19 @@ def score_spo2_scale1(spo2: float) -> int:
     if 94 <= spo2 <= 95: return 1
     return 0  # >=96
 
-def score_spo2_scale2(spo2: float) -> int:
-    # RCP scale 2 for patients with hypercapnic respiratory failure (target 88-92)
+def score_spo2_scale2(spo2: float, supplemental_o2: bool = True) -> int:
+    """RCP NEWS2 scale 2; high saturation only scores on supplemental O2.
+
+    Scale 2 is ONLY for a clinician-prescribed 88–92% target (confirmed
+    hypercapnic respiratory failure), not for COPD by diagnosis alone.
+    """
     if spo2 <= 83: return 3
-    if 84 <= spo2 <= 85: return 2
-    if 86 <= spo2 <= 87: return 1
-    if 88 <= spo2 <= 92: return 0
-    if 93 <= spo2 <= 94: return 1  # on O2 only
-    if 95 <= spo2 <= 96: return 2
-    return 3  # >=97 on O2
+    if spo2 <= 85: return 2
+    if spo2 <= 87: return 1
+    if not supplemental_o2 or spo2 <= 92: return 0
+    if spo2 <= 94: return 1
+    if spo2 <= 96: return 2
+    return 3
 
 def score_sbp(sbp: float) -> int:
     if sbp <= 90: return 3
@@ -71,8 +75,10 @@ def score_temp(t: float) -> int:
 def score_consciousness(avpu: str) -> int:
     return 0 if avpu.upper() == "A" else 3  # V/P/U = 3
 
-def news2_response(score: int) -> str:
-    if score <= 4: return "Low (routine monitoring)"
+def news2_response(score: int, red: bool = False) -> str:
+    if score <= 4:
+        return ("Low–medium (single red parameter: urgent clinical review)"
+                if red else "Low (routine monitoring)")
     if score <= 6: return "Medium (urgent review)"
     return "High (emergency assessment)"
 
@@ -104,53 +110,72 @@ class WarningResult:
     sirs_flags: list[str]
     warnings: list[str]
 
-def assess(patient_id: str, rr, spo2, spo2_scale, supp_o2, sbp, hr, temp, avpu, wcc=None) -> WarningResult:
-    warns: list[str] = []
-    # coerce
+def _measure(name: str, value, minimum: float, maximum: float, *, integer: bool = False) -> float:
+    if value is None or isinstance(value, str) and not value.strip():
+        raise ValueError(f"{name} is required")
     try:
-        rr, spo2, sbp, hr, temp = float(rr), float(spo2), float(sbp), float(hr), float(temp)
-        spo2_scale = int(spo2_scale) if spo2_scale not in (None,"") else 1
-        supp_o2 = int(supp_o2) if supp_o2 not in (None,"") else 0
-        avpu = str(avpu).strip().upper() or "A"
-    except Exception as e:
-        warns.append(str(e))
-        raise
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be numeric") from exc
+    if not math.isfinite(number) or not minimum <= number <= maximum:
+        raise ValueError(f"{name} must be finite and between {minimum:g} and {maximum:g}")
+    if integer and not number.is_integer():
+        raise ValueError(f"{name} must be a whole number")
+    return number
 
-    # NEWS2 component scores
-    s_rr = score_rr(rr)
-    s_hr = score_hr(hr)
-    s_sbp = score_sbp(sbp)
-    s_temp = score_temp(temp)
-    s_avpu = score_consciousness(avpu)
-    s_o2 = 2 if supp_o2 == 1 else 0
-    if spo2_scale == 2:
-        s_spo2 = score_spo2_scale2(spo2)
-        # Scale 2 scoring for 93-94 on O2 already gives 1 etc; if not on O2, clamp
-        if supp_o2 == 0 and s_spo2 > 0 and spo2 >= 88:
-            # RCP: scale 2 only applies when on O2; if breathing air, use scale 1
-            s_spo2 = score_spo2_scale1(spo2)
-            warns.append("SpO2 scale 2 without O2: fell back to scale 1 for SpO2")
+
+def assess(patient_id: str, rr, spo2, spo2_scale, supp_o2, sbp, hr, temp, avpu, wcc=None) -> WarningResult:
+    """Score validated observations. No implicit substitution for missing vitals."""
+    rr = _measure("rr", rr, 1, 100, integer=True)
+    spo2 = _measure("spo2", spo2, 0, 100, integer=True)
+    sbp = _measure("systolic_bp", sbp, 1, 400, integer=True)
+    hr = _measure("heart_rate", hr, 1, 300, integer=True)
+    temp = _measure("temperature", temp, 25, 45)
+    if round(temp, 1) != temp:
+        raise ValueError("temperature must be recorded to one decimal place")
+    scale = _measure("spo2_scale", spo2_scale, 1, 2, integer=True)
+    oxygen = _measure("supplemental_o2", supp_o2, 0, 1, integer=True)
+    if avpu is None or str(avpu).strip().upper() not in {"A", "C", "V", "P", "U"}:
+        raise ValueError("avpu must be A, C (new confusion), V, P or U")
+    avpu = str(avpu).strip().upper()
+    if wcc is not None and str(wcc).strip():
+        wcc = _measure("wcc", wcc, 0, 1000)
     else:
-        s_spo2 = score_spo2_scale1(spo2)
+        wcc = None
 
-    news2 = s_rr + s_spo2 + s_o2 + s_sbp + s_hr + s_temp + s_avpu
-    # RCP red score: any single 3 triggers medium at score 5 threshold, but we report raw
-    detail = {"RR": s_rr, "SpO2": s_spo2, "O2": s_o2, "SBP": s_sbp, "HR": s_hr, "Temp": s_temp, "AVPU": s_avpu}
-    if any(v == 3 for v in detail.values()):
-        warns.append("Red score (3 in one parameter) -> escalate even if NEWS2 <5 per RCP")
-
+    s_rr, s_hr = score_rr(rr), score_hr(hr)
+    s_sbp, s_temp = score_sbp(sbp), score_temp(temp)
+    s_avpu, s_o2 = score_consciousness(avpu), 2 if oxygen else 0
+    s_spo2 = (score_spo2_scale2(spo2, bool(oxygen)) if scale == 2
+              else score_spo2_scale1(spo2))
+    detail = {"RR": s_rr, "SpO2": s_spo2, "O2": s_o2, "SBP": s_sbp,
+              "HR": s_hr, "Temp": s_temp, "AVPU": s_avpu}
+    red = any(value == 3 for value in detail.values())
+    total = sum(detail.values())
+    warns: list[str] = []
+    if scale == 2:
+        warns.append("Scale 2 requires a clinician-prescribed SpO2 target of 88–92%")
+    if red:
+        warns.append("Red score (3 in one parameter) -> urgent review even if NEWS2 <5 per RCP")
+    if wcc is None:
+        warns.append("SIRS is partial: white blood cell count (WCC) not provided")
     q, qf = qsofa_score(rr, sbp, avpu)
     s, sf = sirs_score(temp, hr, rr, wcc)
-
-    return WarningResult(patient_id, news2, news2_response(news2), detail, q, qf, s, sf, warns)
+    return WarningResult(str(patient_id), total, news2_response(total, red), detail, q, qf, s, sf, warns)
 
 def calculate_news2(rr: float, spo2: float, o2_support: bool = False, sbp: float = 120, hr: float = 70, consciousness: str = "A", temp: float = 37.0, spo2_scale: int = 1) -> dict:
     res = assess("patient", rr=rr, spo2=spo2, spo2_scale=spo2_scale, supp_o2=1 if o2_support else 0, sbp=sbp, hr=hr, temp=temp, avpu=consciousness)
     return {"news2_score": res.news2, "response": res.news2_response, "detail": res.news2_detail, "warnings": res.warnings}
 
 def calculate_qsofa(rr: float, sbp: float, gcs: Optional[int] = None, avpu: Optional[str] = None) -> dict:
+    rr = _measure("rr", rr, 1, 100, integer=True)
+    sbp = _measure("systolic_bp", sbp, 1, 400, integer=True)
+    if gcs is not None:
+        gcs = _measure("gcs", gcs, 3, 15, integer=True)
     if avpu is None:
-        avpu = "A" if (gcs is None or gcs >= 15) else "V"
+        avpu = "A" if (gcs is None or gcs == 15) else "V"
+    if str(avpu).upper() not in {"A", "C", "V", "P", "U"}:
+        raise ValueError("avpu must be A, C, V, P or U")
     score, flags = qsofa_score(rr=rr, sbp=sbp, avpu=avpu)
     return {"qsofa_score": score, "flags": flags}
 
@@ -163,14 +188,21 @@ def process_csv(inp: str, out: str):
         r = csv.DictReader(f)
         for row in r:
             pid = row.get("patient_id") or row.get("id") or "?"
-            res = assess(pid, row["rr"], row["spo2"], row.get("spo2_scale",1), row.get("supplemental_o2",0),
-                         row["systolic_bp"], row["heart_rate"], row["temperature"], row.get("avpu","A"), row.get("wcc"))
+            try:
+                consciousness = row.get("avpu") or row.get("consciousness")
+                res = assess(pid, row["rr"], row["spo2"], row.get("spo2_scale", 1),
+                             row.get("supplemental_o2", 0), row["systolic_bp"],
+                             row["heart_rate"], row["temperature"], consciousness, row.get("wcc"))
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError(f"Invalid CSV row {r.line_num}: {exc}") from exc
             results.append(res)
     with open(out, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=["patient_id","news2","news2_response","news2_detail","qsofa","qsofa_flags","sirs","sirs_flags","warnings"])
         w.writeheader()
         for res in results:
-            w.writerow({"patient_id":res.patient_id,"news2":res.news2,"news2_response":res.news2_response,
+            # Avoid spreadsheet-formula execution when exported CSV is opened.
+            pid = "'" + res.patient_id if res.patient_id.lstrip().startswith(("=", "+", "-", "@")) else res.patient_id
+            w.writerow({"patient_id":pid,"news2":res.news2,"news2_response":res.news2_response,
                         "news2_detail":res.news2_detail,"qsofa":res.qsofa,"qsofa_flags":";".join(res.qsofa_flags),
                         "sirs":res.sirs,"sirs_flags":";".join(res.sirs_flags),"warnings":"|".join(res.warnings)})
     return results
@@ -183,7 +215,7 @@ def build_parser():
     s.add_argument("--rr", required=True, type=float); s.add_argument("--spo2", required=True, type=float)
     s.add_argument("--spo2-scale", type=int, default=1, choices=[1,2]); s.add_argument("--o2", type=int, default=0, choices=[0,1])
     s.add_argument("--sbp", required=True, type=float); s.add_argument("--hr", required=True, type=float)
-    s.add_argument("--temp", required=True, type=float); s.add_argument("--avpu", default="A", choices=["A","V","P","U","a","v","p","u"])
+    s.add_argument("--temp", required=True, type=float); s.add_argument("--avpu", default="A", choices=["A","C","V","P","U","a","c","v","p","u"])
     s.add_argument("--wcc", type=float, default=None)
     b = sub.add_parser("batch"); b.add_argument("--input", required=True); b.add_argument("--output", required=True)
     # Enterprise agent subcommands
@@ -204,7 +236,8 @@ def main(argv=None):
         return 0
     if a.cmd == "batch":
         results = process_csv(a.input, a.output)
-        print(f"Processed {len(results)} -> {a.output}  mean NEWS2={sum(r.news2 for r in results)/len(results):.1f}")
+        mean = f"{sum(r.news2 for r in results)/len(results):.1f}" if results else "N/A"
+        print(f"Processed {len(results)} -> {a.output}  mean NEWS2={mean}")
         for r in results: print(f"  {r.patient_id}: NEWS2={r.news2} qSOFA={r.qsofa} SIRS={r.sirs}")
         return 0
     if a.cmd == "audit":

@@ -32,13 +32,43 @@ jobs:
       run: |
         pytest -v
 
-    - name: Security SAST & Zero-PHI Audit
+    - name: Audit-chain smoke test
       env:
         AUDIT_SECRET_KEY: ci-test-audit-key-news2-qsofa-2026
       run: |
         python -c "
-        from agents.base import PHIGuard, AuditLogger
-        import pytest
-        assert AuditLogger.verify_integrity() is True
-        print('Security & Zero-PHI Audit Passed!')
+        from agents.base import PHIGuard, AuditTrail, SecurityException
+        audit = AuditTrail(secret_key='ci-smoke-test-only')
+        audit.log('test', 'worker', 'TEST', {'status': 'OK'})
+        assert audit.verify_integrity()
+        audit.logs[0]['actor'] = 'altered'
+        assert not audit.verify_integrity()
+        try:
+            PHIGuard.assert_no_phi('Patient MRN-994827')
+        except SecurityException:
+            pass
+        else:
+            raise AssertionError('Expected pattern-based identifier rejection')
+        print('Audit signature and identifier-pattern smoke checks passed')
+
         "
+
+    - name: Python syntax and dependency consistency
+      run: |
+        python -m compileall -q .
+        python -m pip check
+
+    - name: Browser scoring and CSV regression tests
+      run: |
+        node --version
+        node --check web/scoring.js
+        node --test web/scoring.test.cjs
+        python - <<'PY'
+        from pathlib import Path
+        import re
+        html = Path("web/index.html").read_text(encoding="utf-8")
+        scripts = re.findall(r"<script(?:\s[^>]*)?>(.*?)</script>", html, flags=re.S | re.I)
+        assert len(scripts) == 2 and scripts[-1].strip(), "Expected browser script"
+        Path("/tmp/early-warning-inline.js").write_text(scripts[-1], encoding="utf-8")
+        PY
+        node --check /tmp/early-warning-inline.js
