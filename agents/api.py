@@ -1,12 +1,14 @@
 """
 FastAPI REST API Server for News2 Qsofa Early Warning.
 """
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+from dataclasses import asdict
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from .base import AuditLogger, PHIGuard
 from .models import SystemTaskPayload, ConsensusDossier
 from .supervisor import SystemSupervisor
+from news2_qsofa import assess
 
 supervisor = SystemSupervisor(model_provider="mock")
 
@@ -19,6 +21,32 @@ app = FastAPI(
 
 class ChatRequest(BaseModel):
     query: str
+
+
+class VitalSigns(BaseModel):
+    """Observations for deterministic scoring; no patient identifiers accepted."""
+    rr: float
+    spo2: float
+    spo2_scale: int = 1
+    supplemental_o2: int = 0
+    systolic_bp: float
+    heart_rate: float
+    temperature: float
+    avpu: str
+    wcc: Optional[float] = None
+
+
+@app.post("/api/score")
+def api_score(vitals: VitalSigns):
+    """Calculate NEWS2, qSOFA and SIRS without retaining the observation set."""
+    try:
+        result = assess(
+            "anonymous", vitals.rr, vitals.spo2, vitals.spo2_scale,
+            vitals.supplemental_o2, vitals.systolic_bp,
+            vitals.heart_rate, vitals.temperature, vitals.avpu, vitals.wcc)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return asdict(result)
 
 
 @app.get("/health")
